@@ -38,6 +38,9 @@ jobs:
       - name: Build heat grid (skips if this summer set is already built)
         run: python pipeline/heat_node.py
 
+      - name: Build green-cover grid (skips if this summer is already built)
+        run: python pipeline/green_node.py
+
       - name: Build site data
         run: python pipeline/build_site.py
 
@@ -51,7 +54,7 @@ jobs:
           cat site/data/layers.json 2>/dev/null || true
           ls -la site/data 2>/dev/null || true
 
-      - name: Commit manifest and heat grid
+      - name: Commit manifest and derived grids
         if: github.ref == 'refs/heads/main'
         run: |
           git config user.name  "sensorium-bot"

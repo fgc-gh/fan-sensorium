@@ -11,7 +11,7 @@ Checks the failure modes that actually happen with public GIS services:
   * the city renames or splits the neighbourhood polygon (0 or 2+ features)
   * a server returns coordinates in the wrong projection (lots land in Idaho)
   * a feed silently truncates (taxlot count drops by a third)
-  * a heat grid built from too few or nonsense scenes
+  * a heat or green-cover grid built from too few or nonsense scenes
 
 With --write, a passing run records counts and checksums in data/manifest.json.
 Committed weekly, that file's git history is a log of how the data moved.
@@ -39,6 +39,9 @@ HEAT_MIN_SCENES = 3
 HEAT_MEDIAN_F = (50.0, 140.0)  # plausible summer surface temps
 HEAT_MAX_ABS_DELTA = 30.0
 HEAT_LOT_COVERAGE = 0.95
+GREEN_MIN_SCENES = 3
+GREEN_MEDIAN_NDVI = (0.05, 0.9)  # a summer residential neighbourhood, not desert or forest
+GREEN_LOT_COVERAGE = 0.95
 
 
 class ContractError(Exception):
@@ -156,6 +159,32 @@ def check(raw: Path, derived: Path, site: Path, manifest: Path) -> tuple[dict, l
             "sha256": sha256(derived / "heat_f.tif"),
         }
 
+    # -- green cover (optional until the first grid exists) ----------------
+    gmeta_p = derived / "green_scenes.json"
+    if gmeta_p.exists():
+        g = json.loads(gmeta_p.read_text())
+        if len(g["scenes"]) < GREEN_MIN_SCENES:
+            problems.append(f"green: only {len(g['scenes'])} scenes")
+        med = g.get("fan_median_ndvi")
+        if med is None or not GREEN_MEDIAN_NDVI[0] <= med <= GREEN_MEDIAN_NDVI[1]:
+            problems.append(f"green: FAN median NDVI {med} is implausible (offset or band bug?)")
+        lots = json.loads((site / "taxlots.geojson").read_text())["features"] if (site / "taxlots.geojson").exists() else []
+        pcts = [f["properties"].get("green_pct") for f in lots]
+        valued = [p for p in pcts if p is not None]
+        if lots and len(valued) / len(lots) < GREEN_LOT_COVERAGE:
+            problems.append(f"green: only {len(valued)}/{len(lots)} taxlots got a value")
+        if any(not 0 <= p <= 100 for p in valued):
+            problems.append("green: a taxlot share is outside 0-100%")
+        if not layers_p.exists() or "green" not in json.loads(layers_p.read_text()):
+            problems.append("green: grid exists but the site was built without it")
+        result["green"] = {
+            "summers": g["summers"],
+            "scenes": [s["id"] for s in g["scenes"]],
+            "fan_median_ndvi": med,
+            "fan_green_share": g.get("fan_green_share"),
+            "sha256": sha256(derived / "green_ndvi.tif"),
+        }
+
     return result, problems
 
 
@@ -181,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print(f"contract ok: {result['taxlots']['count']} taxlots, "
-          f"boundary {result['boundary']['area_km2']} km2, heat={'heat' in result}")
+          f"boundary {result['boundary']['area_km2']} km2, heat={'heat' in result}, green={'green' in result}")
     if args.write:
         result["checked_utc"] = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
         args.manifest.parent.mkdir(parents=True, exist_ok=True)
