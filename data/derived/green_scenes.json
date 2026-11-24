@@ -1,0 +1,97 @@
+{
+  "summers": [
+    2026
+  ],
+  "season": "06-15 to 09-15",
+  "source": "Sentinel-2 Level-2A (ESA Copernicus) via Microsoft Planetary Computer",
+  "statistic": "per-pixel median NDVI of clear passes",
+  "green_threshold_ndvi": 0.5,
+  "fan_median_ndvi": 0.447,
+  "fan_green_share": 0.392,
+  "scenes": [
+    {
+      "id": "S2C_MSIL2A_20260615T185921_R013_T10TDP_20260615T231729",
+      "datetime": "2026-06-15T18:59:21.025000Z",
+      "fan_clear": 0.887,
+      "fan_median_ndvi": 0.482
+    },
+    {
+      "id": "S2B_MSIL2A_20260703T190909_R056_T10TDP_20260703T223847",
+      "datetime": "2026-07-03T19:09:09.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.472
+    },
+    {
+      "id": "S2C_MSIL2A_20260708T190911_R056_T10TDP_20260708T234308",
+      "datetime": "2026-07-08T19:09:11.025000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.459
+    },
+    {
+      "id": "S2B_MSIL2A_20260710T185919_R013_T10TDP_20260710T224144",
+      "datetime": "2026-07-10T18:59:19.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.47
+    },
+    {
+      "id": "S2B_MSIL2A_20260713T190909_R056_T10TDP_20260713T224130",
+      "datetime": "2026-07-13T19:09:09.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.457
+    },
+    {
+      "id": "S2C_MSIL2A_20260715T185921_R013_T10TDP_20260715T233512",
+      "datetime": "2026-07-15T18:59:21.025000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.434
+    },
+    {
+      "id": "S2C_MSIL2A_20260718T190911_R056_T10TDP_20260718T232802",
+      "datetime": "2026-07-18T19:09:11.025000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.452
+    },
+    {
+      "id": "S2A_MSIL2A_20260727T190831_R013_T10TDP_20260728T013814",
+      "datetime": "2026-07-27T19:08:31.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.446
+    },
+    {
+      "id": "S2C_MSIL2A_20260728T190911_R056_T10TDP_20260728T233402",
+      "datetime": "2026-07-28T19:09:11.025000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.441
+    },
+    {
+      "id": "S2B_MSIL2A_20260802T190919_R056_T10TDP_20260802T225837",
+      "datetime": "2026-08-02T19:09:19.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.441
+    },
+    {
+      "id": "S2C_MSIL2A_20260807T190911_R056_T10TDP_20260807T234017",
+      "datetime": "2026-08-07T19:09:11.025000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.419
+    },
+    {
+      "id": "S2B_MSIL2A_20260809T185919_R013_T10TDP_20260809T224307",
+      "datetime": "2026-08-09T18:59:19.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.44
+    },
+    {
+      "id": "S2B_MSIL2A_20260819T185909_R013_T10TDP_20260819T224701",
+      "datetime": "2026-08-19T18:59:09.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.425
+    },
+    {
+      "id": "S2B_MSIL2A_20260908T185919_R013_T10TDP_20260908T225123",
+      "datetime": "2026-09-08T18:59:19.024000Z",
+      "fan_clear": 1.0,
+      "fan_median_ndvi": 0.458
+    }
+  ]
+}
