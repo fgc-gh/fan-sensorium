@@ -102,3 +102,58 @@ def scenes(tmp_path):
                                      "platform": "landsat-9"},
                       "assets": {"lwir11": {"href": str(sp)}, "qa_pixel": {"href": str(qp)}}})
     return items
+
+
+def ndvi_to_dn(ndvi, offset=True):
+    """Red and NIR DNs that give `ndvi`, with NIR + red reflectance fixed at 0.4."""
+    ndvi = np.asarray(ndvi, dtype="float64")
+    add = 1000 if offset else 0
+    nir = np.round(0.2 * (1 + ndvi) * 10000) + add
+    red = np.round(0.2 * (1 - ndvi) * 10000) + add
+    return red.astype("uint16"), nir.astype("uint16")
+
+
+@pytest.fixture
+def s2_scenes(tmp_path):
+    """Fake Sentinel-2 L2A passes at 10 m over the AOI.
+
+    Truth: NDVI 0.8 (leafy) at the west edge falling to 0.1 (pavement) at the
+    east edge, so the green side is the cool side of the fake heat scenes.
+      g0, g1, g2: truth +/- 0.03, current baseline (+1000 DN offset)  -> median == truth
+      g3: truth, old baseline 03.01 (no offset)                       -> kept, same NDVI
+      g4: half of FAN cloudy (SCL 9)                                   -> dropped
+      g5: same day as g0 from the next tile, all NDVI 0.0, a shadow strip -> dropped as duplicate
+    """
+    xs, ys = warp_xy("EPSG:4326", "EPSG:32610", [LON0 - .01, LON1 + .01], [LAT1 + .01, LAT0 - .01])
+    w = int((xs[1] - xs[0]) // 10) + 1
+    h = int((ys[0] - ys[1]) // 10) + 1
+    t = from_origin(xs[0], ys[0], 10, 10)
+    truth = np.tile(np.linspace(0.8, 0.1, w), (h, 1))
+
+    def write(path, arr):
+        with rasterio.open(path, "w", driver="GTiff", width=w, height=h, count=1, dtype="uint16",
+                           crs="EPSG:32610", transform=t, nodata=0) as dst:
+            dst.write(arr.astype("uint16"), 1)
+
+    specs = [  # (ndvi offset, baseline, cloud, day)
+        (-0.03, "05.11", None, 10), (0.0, "05.11", None, 14), (0.03, "05.11", None, 18),
+        (0.0, "03.01", None, 22), (0.0, "05.11", "half", 26), (None, "05.11", "dupe", 10),
+    ]
+    items = []
+    for k, (off, baseline, cloud, day) in enumerate(specs):
+        ndvi = np.zeros_like(truth) if off is None else truth + off
+        red, nir = ndvi_to_dn(ndvi, offset=baseline >= "04.00")
+        scl = np.full((h, w), 4, dtype="uint16")  # vegetation
+        if cloud == "half":
+            scl[:, : w // 2] = 9
+        elif cloud == "dupe":
+            scl[:, w // 2: w // 2 + 8] = 3
+        paths = {}
+        for band, arr in (("B04", red), ("B08", nir), ("SCL", scl)):
+            paths[band] = tmp_path / f"g{k}_{band}.tif"
+            write(paths[band], arr)
+        items.append({"id": f"S2_FAKE_{k}",
+                      "properties": {"datetime": f"2026-07-{day:02d}T19:15:{k:02d}Z",
+                                     "s2:processing_baseline": baseline},
+                      "assets": {b: {"href": str(p)} for b, p in paths.items()}})
+    return items

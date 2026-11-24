@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Neighborhood Sensorium</title>
-<meta name="description" content="Block-level summer heat for the Friendly Area Neighbors neighborhood in Eugene, Oregon, from public satellite data, refreshed automatically.">
+<meta name="description" content="Block-level summer heat and green cover for the Friendly Area Neighbors neighborhood in Eugene, Oregon, from public satellite data, refreshed automatically.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <!-- Stand-ins for a Dinamo face (ABC Diatype / ABC Diatype Mono are licensed).
@@ -64,6 +64,17 @@
   .pop-v { font-size: 24px; font-weight: 700; margin: 2px 0; }
   .pop-n { font-size: 14px; color: var(--ink-2); }
 
+  .switch { display: flex; border: 1.5px solid var(--ink); margin: 0 0 12px; }
+  .switch label { flex: 1; text-align: center; font-family: var(--mono); font-size: 14px; padding: 7px 6px; cursor: pointer; user-select: none; }
+  .switch label + label { border-left: 1.5px solid var(--ink); }
+  .switch input { position: absolute; opacity: 0; pointer-events: none; }
+  .switch label:has(input:checked) { background: var(--ink); color: var(--paper); }
+  .switch label:has(input:focus-visible) { outline: 2px solid var(--rust); outline-offset: 2px; }
+  .story { font-size: 16px; line-height: 1.4; border-left: 4px solid var(--rust); padding: 2px 0 2px 10px; margin: 0 0 14px; }
+  .story b { font-family: var(--mono); }
+  .pop-row { display: flex; gap: 14px; }
+  .pop-row > div { flex: 1; }
+  .pop-k { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-2); }
   @media (max-width: 640px) {
     .panel { top: auto; bottom: 0; left: 0; width: 100vw; max-height: 46vh; box-shadow: none; border-width: 1.5px 0 0; padding: 14px 16px; }
     h1 { font-size: 26px; }
@@ -79,7 +90,12 @@
 <aside class="panel">
   <p class="kicker">Friendly Area Neighbors · Eugene</p>
   <h1>Neighborhood Sensorium</h1>
-  <p>Where the ground runs hottest on a clear summer day, measured from public satellite data. Tap any lot for its number.</p>
+  <p>Where the ground runs hottest on a clear summer day, and where the green is, measured from public satellite data. Tap any lot for its numbers.</p>
+
+  <div class="switch" id="switch" role="radiogroup" aria-label="Map layer" hidden>
+    <label><input type="radio" name="view" value="heat" checked>Heat</label>
+    <label><input type="radio" name="view" value="green">Green cover</label>
+  </div>
 
   <div class="big" id="headline"><span class="status">Loading…</span></div>
 
@@ -88,19 +104,23 @@
     <div class="ticks" id="ticks"></div>
   </div>
 
+  <p class="story" id="story" hidden></p>
+
   <div class="toggles">
-    <label><input type="checkbox" id="t-heat" checked>Heat</label>
+    <label><input type="checkbox" id="t-layer" checked>Color</label>
     <label><input type="checkbox" id="t-lots" checked>Lot lines</label>
   </div>
 
   <details>
     <summary>How this is made</summary>
     <ul id="methods">
-      <li>Surface temperature from Landsat 8 and 9 (USGS Collection 2, band ST_B10), every clear pass from mid June to mid September, through Microsoft Planetary Computer.</li>
+      <li><b>Heat:</b> surface temperature from Landsat 8 and 9 (USGS Collection 2, band ST_B10), every clear pass from mid June to mid September, through Microsoft Planetary Computer.</li>
       <li>Cloudy and shadowed pixels are removed using each scene's own quality band. A scene is used only if most of the neighborhood is clear.</li>
       <li>Each 30 m cell shows the median of those passes, compared with the neighborhood-wide median.</li>
       <li>Landsat passes over Eugene at about 11:15 AM, so this is late-morning <em>ground</em> temperature, not afternoon air temperature. The afternoon pattern is similar and hotter.</li>
       <li>The thermal sensor sees about 100 m at a time. Trust differences between blocks, not between next-door lots.</li>
+      <li><b>Green cover:</b> summer greenness (NDVI) from Sentinel-2 at 10 m, the median of clear passes over the same months. A spot counts as green at NDVI 0.5 or more.</li>
+      <li>Green cover sees anything leafy and growing. In a dry Eugene summer that is mostly trees, but watered lawns and gardens count too. A tree-height layer from lidar, which tells a tree from a lawn, is next.</li>
       <li>Lot lines: Lane County Assessment &amp; Taxation via LCOG. Neighborhood line: City of Eugene.</li>
     </ul>
     <p id="sources"></p>
@@ -114,6 +134,8 @@
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const fmt = (d) => (d > 0 ? "+" : d < 0 ? "−" : "±") + Math.abs(d).toFixed(1) + " °F";
+  const num = (v) => (v === undefined || v === null || v === "" ? null : parseFloat(v));
+  const span = (l) => (l.summers.length > 1 ? `${l.summers[0]}–${l.summers[l.summers.length - 1]}` : `${l.summers[0]}`);
 
   let layers;
   try {
@@ -123,23 +145,47 @@
     return;
   }
 
-  const heat = layers.heat;
-  if (heat) {
-    $("headline").innerHTML =
-      `<b>${heat.fan_median_f.toFixed(0)} °F</b>neighborhood typical ground temperature, late morning, clear summer days ${heat.summers[0]}–${heat.summers[heat.summers.length - 1]} (${heat.scene_count} satellite passes)`;
-    const stops = heat.ramp;
-    const lo = stops[0][0], hi = stops[stops.length - 1][0];
+  const heat = layers.heat, green = layers.green, story = layers.story;
+  const views = {
+    heat: heat && {
+      headline: `<b>${heat.fan_median_f.toFixed(0)} °F</b>neighborhood typical ground temperature, late morning, clear summer days ${span(heat)} (${heat.scene_count} satellite passes)`,
+      ramp: heat.ramp,
+      ticks: (lo, hi) => `<span>${fmt(lo)} cooler</span><span>typical</span><span>${fmt(hi)} hotter</span>`,
+    },
+    green: green && {
+      headline: `<b>${Math.round(green.fan_green_share * 100)}%</b>of the neighborhood is green in summer ${span(green)} (${green.scene_count} satellite passes)`,
+      ramp: green.ramp,
+      ticks: () => `<span>bare or paved</span><span>lawn or sparse</span><span>leafy</span>`,
+    },
+  };
+  const available = Object.keys(views).filter((k) => views[k]);
+  let view = available[0] || null;
+
+  function showPanel() {
+    if (!view) {
+      $("headline").innerHTML = '<span class="status">Layers not built yet. Lot lines only.</span>';
+      $("t-layer").parentElement.hidden = true;
+      return;
+    }
+    const v = views[view];
+    $("headline").innerHTML = v.headline;
+    const stops = v.ramp, lo = stops[0][0], hi = stops[stops.length - 1][0];
     $("ramp").style.background = "linear-gradient(90deg," +
-      stops.map(([v, c]) => `${c} ${((v - lo) / (hi - lo) * 100).toFixed(1)}%`).join(",") + ")";
-    $("ticks").innerHTML = `<span>${fmt(lo)} cooler</span><span>typical</span><span>${fmt(hi)} hotter</span>`;
+      stops.map(([x, c]) => `${c} ${((x - lo) / (hi - lo) * 100).toFixed(1)}%`).join(",") + ")";
+    $("ticks").innerHTML = v.ticks(lo, hi);
     $("legend").hidden = false;
-  } else {
-    $("headline").innerHTML = '<span class="status">Heat layer not built yet. Lot lines only.</span>';
-    $("t-heat").parentElement.hidden = true;
   }
+  showPanel();
+  if (available.length > 1) $("switch").hidden = false;
+  if (story && story.gap_f >= 0.5) {
+    $("story").innerHTML = `The least green fifth of lots runs <b>${story.gap_f.toFixed(1)} °F</b> hotter than the greenest fifth on a clear summer morning.`;
+    $("story").hidden = false;
+  }
+
   const src = [];
   if (layers.taxlots && layers.taxlots.retrieved_utc) src.push(`Lots updated ${layers.taxlots.retrieved_utc.slice(0, 10)} (${layers.taxlots.count} lots).`);
-  if (heat) src.push(`Satellite passes ${heat.first_scene} to ${heat.last_scene}.`);
+  if (heat) src.push(`Landsat passes ${heat.first_scene} to ${heat.last_scene}.`);
+  if (green) src.push(`Sentinel-2 passes ${green.first_scene} to ${green.last_scene}.`);
   $("sources").textContent = src.join(" ");
 
   const map = new maplibregl.Map({
@@ -147,7 +193,7 @@
     style: "https://tiles.openfreemap.org/styles/positron",
     center: [-123.13, 44.03],
     zoom: 14,
-    attributionControl: { compact: true, customAttribution: "Landsat: USGS/NASA via Microsoft Planetary Computer · Lots: Lane County / LCOG · Boundary: City of Eugene" },
+    attributionControl: { compact: true, customAttribution: "Landsat: USGS/NASA · Sentinel-2: ESA Copernicus · both via Microsoft Planetary Computer · Lots: Lane County / LCOG · Boundary: City of Eugene" },
   });
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
@@ -167,9 +213,11 @@
     const firstLabel = map.getStyle().layers.find((l) => l.type === "symbol");
     const before = firstLabel ? firstLabel.id : undefined;
 
-    if (heat) {
-      map.addSource("heat", { type: "image", url: heat.image, coordinates: heat.corners });
-      map.addLayer({ id: "heat", type: "raster", source: "heat",
+    for (const k of available) {
+      const l = layers[k];
+      map.addSource(k, { type: "image", url: l.image, coordinates: l.corners });
+      map.addLayer({ id: k, type: "raster", source: k,
+        layout: { visibility: k === view ? "visible" : "none" },
         paint: { "raster-opacity": 0.85, "raster-resampling": "linear", "raster-fade-duration": 0 } }, before);
     }
     map.addLayer({ id: "lots-hit", type: "fill", source: "lots", paint: { "fill-color": "#000", "fill-opacity": 0 } }, before);
@@ -187,7 +235,16 @@
     map.fitBounds(b, { padding: mobile ? { top: 24, bottom: window.innerHeight * 0.48, left: 16, right: 16 }
                                        : { top: 40, bottom: 40, left: 420, right: 40 }, duration: 0 });
 
-    $("t-heat").addEventListener("change", (e) => heat && map.setLayoutProperty("heat", "visibility", e.target.checked ? "visible" : "none"));
+    const paint = () => {
+      const on = $("t-layer").checked;
+      for (const k of available) map.setLayoutProperty(k, "visibility", on && k === view ? "visible" : "none");
+    };
+    document.querySelectorAll('input[name="view"]').forEach((r) => r.addEventListener("change", (e) => {
+      view = e.target.value;
+      showPanel();
+      paint();
+    }));
+    $("t-layer").addEventListener("change", paint);
     $("t-lots").addEventListener("change", (e) => map.setLayoutProperty("lots-line", "visibility", e.target.checked ? "visible" : "none"));
 
     map.on("mouseenter", "lots-hit", () => (map.getCanvas().style.cursor = "pointer"));
@@ -195,11 +252,16 @@
     map.on("click", "lots-hit", (e) => {
       const p = e.features[0].properties;
       const acres = parseFloat(p.mapacres);
-      const d = p.heat_delta_f === undefined || p.heat_delta_f === null ? null : parseFloat(p.heat_delta_f);
-      const body = d === null
-        ? `<div class="pop-n">No heat reading for this lot.</div>`
-        : `<div class="pop-v">${fmt(d)}</div><div class="pop-n">${d >= 0 ? "hotter" : "cooler"} than the neighborhood typical on a clear summer morning</div>`;
-      new maplibregl.Popup({ closeButton: true, maxWidth: "280px" })
+      const d = num(p.heat_delta_f), g = num(p.green_pct);
+      const cells = [];
+      if (heat) cells.push(d === null
+        ? `<div><div class="pop-k">Heat</div><div class="pop-n">No reading</div></div>`
+        : `<div><div class="pop-k">Heat</div><div class="pop-v">${fmt(d)}</div><div class="pop-n">${d >= 0 ? "hotter" : "cooler"} than typical</div></div>`);
+      if (green) cells.push(g === null
+        ? `<div><div class="pop-k">Green</div><div class="pop-n">No reading</div></div>`
+        : `<div><div class="pop-k">Green</div><div class="pop-v">${g.toFixed(0)}%</div><div class="pop-n">of the lot is green in summer</div></div>`);
+      const body = cells.length ? `<div class="pop-row">${cells.join("")}</div>` : `<div class="pop-n">No readings for this lot yet.</div>`;
+      new maplibregl.Popup({ closeButton: true, maxWidth: "300px" })
         .setLngLat(e.lngLat)
         .setHTML(`<div class="pop-id">Lot ${p.maptaxlot ? esc(p.maptaxlot) : "unknown"}${isFinite(acres) ? " · " + acres.toFixed(2) + " ac" : ""}</div>${body}`)
         .addTo(map);

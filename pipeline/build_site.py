@@ -7,6 +7,7 @@ Joins the layers into what the web map loads, and nothing more:
   site/data/boundary.geojson   the FAN outline
   site/data/taxlots.geojson    taxlots, lean properties, plus each lot's heat
   site/data/heat.png           the heat grid as a coloured image overlay
+  site/data/green.png          the summer green-cover grid, same treatment
   site/data/layers.json        corners for the image, legend, sources, dates
 
 Heat per taxlot is the mean of the grid pixels the lot touches, reported as
@@ -45,24 +46,34 @@ RAMP = [
     (6.0, (166, 61, 36)),     # rust
     (9.0, (102, 24, 24)),     # oxblood
 ]
+# Summer NDVI -> colour: dry straw and pavement through moss to deep fir.
+GREEN_RAMP = [
+    (0.0, (196, 182, 150)),   # pavement / roof
+    (0.25, (214, 196, 140)),  # dry grass
+    (0.45, (170, 172, 110)),  # sparse green
+    (0.6, (112, 138, 84)),    # moss
+    (0.8, (52, 82, 47)),      # fir
+]
 ALPHA_IN, ALPHA_OUT = 205, 70  # inside vs outside the FAN line
 
 TAXLOT_KEEP = ("maptaxlot", "mapacres")
 
 
-def ramp_rgb(delta: np.ndarray) -> np.ndarray:
-    stops = np.array([s for s, _ in RAMP])
-    cols = np.array([c for _, c in RAMP], dtype="float64")
-    d = np.clip(delta, stops[0], stops[-1])
+def ramp_rgb(values: np.ndarray, ramp=RAMP) -> np.ndarray:
+    stops = np.array([v for v, _ in ramp])
+    cols = np.array([c for _, c in ramp], dtype="float64")
+    d = np.clip(values, stops[0], stops[-1])
     out = np.stack([np.interp(d, stops, cols[:, i]) for i in range(3)], axis=-1)
     return out.astype("uint8")
 
 
-def zonal_means(geoms_wgs84: list[dict], grid: np.ndarray, transform, crs) -> list[float | None]:
-    """Mean grid value under each polygon (all_touched, so tiny lots still get
-    a value). None where the lot falls entirely outside the grid or on NaN."""
+def zonal_values(geoms_wgs84: list[dict], grid: np.ndarray, transform, crs,
+                 all_touched: bool = True) -> list[np.ndarray | None]:
+    """Finite grid values under each polygon. With all_touched=False, a lot too
+    small to contain any pixel centre falls back to every pixel it touches, so
+    every lot inside the grid gets a reading. None where the lot is off-grid."""
     h, w = grid.shape
-    out: list[float | None] = []
+    out: list[np.ndarray | None] = []
     for g in geoms_wgs84:
         if not g:
             out.append(None)
@@ -78,11 +89,44 @@ def zonal_means(geoms_wgs84: list[dict], grid: np.ndarray, transform, crs) -> li
             continue
         win_t = rasterio.Affine(transform.a, transform.b, transform.c + c0 * transform.a + r0 * transform.b,
                                 transform.d, transform.e, transform.f + c0 * transform.d + r0 * transform.e)
-        m = features.geometry_mask([gp], (r1 - r0, c1 - c0), win_t, invert=True, all_touched=True)
-        vals = grid[r0:r1, c0:c1][m]
-        vals = vals[np.isfinite(vals)]
-        out.append(float(vals.mean()) if vals.size else None)
+        win = grid[r0:r1, c0:c1]
+        vals = np.array([])
+        for touched in ((True,) if all_touched else (False, True)):
+            m = features.geometry_mask([gp], win.shape, win_t, invert=True, all_touched=touched)
+            vals = win[m]
+            vals = vals[np.isfinite(vals)]
+            if vals.size:
+                break
+        out.append(vals if vals.size else None)
     return out
+
+
+def zonal_means(geoms_wgs84: list[dict], grid: np.ndarray, transform, crs) -> list[float | None]:
+    return [None if v is None else float(v.mean())
+            for v in zonal_values(geoms_wgs84, grid, transform, crs, all_touched=True)]
+
+
+def _read_grid(tif: Path, bgeom: dict):
+    with rasterio.open(tif) as src:
+        grid = src.read(1)
+        transform, crs = src.transform, src.crs.to_string()
+    aoi = features.geometry_mask([transform_geom("EPSG:4326", crs, bgeom)], grid.shape, transform, invert=True)
+    return grid, transform, crs, aoi
+
+
+def _corners(grid: np.ndarray, transform, crs) -> list[list[float]]:
+    h, w = grid.shape
+    xs, ys = zip(*(_xy(transform, c, r) for c, r in zip([0, w, w, 0], [0, 0, h, h])))
+    lon, lat = warp_xy(crs, "EPSG:4326", list(xs), list(ys))
+    return [[round(a, 6), round(b, 6)] for a, b in zip(lon, lat)]  # TL, TR, BR, BL
+
+
+def _overlay(values: np.ndarray, valid: np.ndarray, aoi: np.ndarray, ramp, path: Path) -> None:
+    rgba = np.zeros(values.shape + (4,), dtype="uint8")
+    rgba[..., :3] = ramp_rgb(np.nan_to_num(values), ramp)
+    rgba[..., 3] = np.where(aoi, ALPHA_IN, ALPHA_OUT)
+    rgba[~valid, 3] = 0
+    write_png(rgba, path)
 
 
 def _xy(t, col: float, row: float) -> tuple[float, float]:
@@ -129,32 +173,18 @@ def build(raw: Path, derived: Path, out: Path) -> dict:
                     "count": len(taxlots["features"])},
     }
 
+    geoms = [f.get("geometry") for f in taxlots["features"]]
+    n = len(geoms)
+
+    # -- heat -----------------------------------------------------------------
     heat_tif, heat_meta = derived / "heat_f.tif", derived / "heat_scenes.json"
-    lot_heat: list[float | None] = [None] * len(taxlots["features"])
+    lot_heat: list[float | None] = [None] * n
     if heat_tif.exists() and heat_meta.exists():
         meta = json.loads(heat_meta.read_text())
-        with rasterio.open(heat_tif) as src:
-            grid = src.read(1)
-            transform, crs = src.transform, src.crs.to_string()
-        aoi = features.geometry_mask([transform_geom("EPSG:4326", crs, bgeom)], grid.shape, transform, invert=True)
+        grid, transform, crs, aoi = _read_grid(heat_tif, bgeom)
         median = float(np.nanmedian(grid[aoi]))
-        delta = grid - median
-
-        rgba = np.zeros(grid.shape + (4,), dtype="uint8")
-        rgba[..., :3] = ramp_rgb(np.nan_to_num(delta))
-        rgba[..., 3] = np.where(aoi, ALPHA_IN, ALPHA_OUT)
-        rgba[~np.isfinite(grid), 3] = 0
-        write_png(rgba, out / "heat.png")
-
-        h, w = grid.shape
-        px = [0, w, w, 0]
-        py = [0, 0, h, h]
-        xs, ys = zip(*(_xy(transform, c, r) for c, r in zip(px, py)))
-        lon, lat = warp_xy(crs, "EPSG:4326", list(xs), list(ys))
-        corners = [[round(a, 6), round(b, 6)] for a, b in zip(lon, lat)]  # TL, TR, BR, BL
-
-        means = zonal_means([f.get("geometry") for f in taxlots["features"]], grid, transform, crs)
-        lot_heat = [None if m is None else m - median for m in means]
+        _overlay(grid - median, np.isfinite(grid), aoi, RAMP, out / "heat.png")
+        lot_heat = [None if m is None else m - median for m in zonal_means(geoms, grid, transform, crs)]
 
         vals = np.array([d for d in lot_heat if d is not None])
         if vals.size:
@@ -163,7 +193,7 @@ def build(raw: Path, derived: Path, out: Path) -> dict:
                      vals.min(), p5, p50, p95, vals.max())
         layers["heat"] = {
             "image": "data/heat.png",
-            "corners": corners,
+            "corners": _corners(grid, transform, crs),
             "fan_median_f": round(median, 1),
             "summers": meta["summers"],
             "season": meta["season"],
@@ -172,17 +202,71 @@ def build(raw: Path, derived: Path, out: Path) -> dict:
             "first_scene": meta["scenes"][0]["datetime"][:10],
             "last_scene": meta["scenes"][-1]["datetime"][:10],
             "source": meta["source"],
-            "ramp": [[s, "#%02x%02x%02x" % c] for s, c in RAMP],
+            "ramp": [[v, "#%02x%02x%02x" % c] for v, c in RAMP],
             "lots_with_value": sum(v is not None for v in lot_heat),
         }
     else:
         LOG.warning("no heat grid in %s; publishing without the heat layer", derived)
 
+    # -- green cover ----------------------------------------------------------
+    green_tif, green_meta = derived / "green_ndvi.tif", derived / "green_scenes.json"
+    lot_green: list[float | None] = [None] * n
+    lot_ndvi: list[float | None] = [None] * n
+    if green_tif.exists() and green_meta.exists():
+        meta = json.loads(green_meta.read_text())
+        thr = meta["green_threshold_ndvi"]
+        grid, transform, crs, aoi = _read_grid(green_tif, bgeom)
+        _overlay(grid, np.isfinite(grid), aoi, GREEN_RAMP, out / "green.png")
+        inside = grid[aoi]
+        inside = inside[np.isfinite(inside)]
+        per_lot = zonal_values(geoms, grid, transform, crs, all_touched=False)
+        lot_green = [None if v is None else float((v >= thr).mean()) for v in per_lot]
+        # Mean NDVI ranks lots for the story; the share alone ties at 0% and 100%.
+        lot_ndvi = [None if v is None else float(v.mean()) for v in per_lot]
+        layers["green"] = {
+            "image": "data/green.png",
+            "corners": _corners(grid, transform, crs),
+            "threshold_ndvi": thr,
+            "fan_green_share": round(float((inside >= thr).mean()), 3),
+            "summers": meta["summers"],
+            "season": meta["season"],
+            "scene_count": len(meta["scenes"]),
+            "first_scene": meta["scenes"][0]["datetime"][:10],
+            "last_scene": meta["scenes"][-1]["datetime"][:10],
+            "source": meta["source"],
+            "ramp": [[v, "#%02x%02x%02x" % c] for v, c in GREEN_RAMP],
+            "lots_with_value": sum(v is not None for v in lot_green),
+        }
+        LOG.info("green cover: %.0f%% of FAN, %d lots with a value",
+                 layers["green"]["fan_green_share"] * 100, layers["green"]["lots_with_value"])
+    else:
+        LOG.warning("no green grid in %s; publishing without the green layer", derived)
+
+    # -- the one sentence: how much hotter are the least green lots? -----------
+    trios = [(v, g, h) for v, g, h in zip(lot_ndvi, lot_green, lot_heat) if None not in (v, g, h)]
+    if len(trios) >= 50:
+        trios.sort(key=lambda t: t[0])
+        k = len(trios) // 5
+        pairs = [(g, h) for _, g, h in trios]
+        bare = float(np.mean([h for _, h in pairs[:k]]))
+        leafy = float(np.mean([h for _, h in pairs[-k:]]))
+        layers["story"] = {
+            "least_green_fifth_heat_f": round(bare, 1),
+            "greenest_fifth_heat_f": round(leafy, 1),
+            "gap_f": round(bare - leafy, 1),
+            "least_green_fifth_green_share": round(float(np.mean([g for g, _ in pairs[:k]])), 2),
+            "greenest_fifth_green_share": round(float(np.mean([g for g, _ in pairs[-k:]])), 2),
+            "lots": len(pairs),
+        }
+        LOG.info("least-green fifth of lots runs %.1f F hotter than the greenest fifth", bare - leafy)
+
     lean = []
-    for f, d in zip(taxlots["features"], lot_heat):
+    for f, d, g in zip(taxlots["features"], lot_heat, lot_green):
         props = {k: (f.get("properties") or {}).get(k) for k in TAXLOT_KEEP}
         if d is not None:
             props["heat_delta_f"] = round(d, 1)
+        if g is not None:
+            props["green_pct"] = int(round(g * 100))
         lean.append({"type": "Feature", "geometry": _round_geom(f.get("geometry")), "properties": props})
 
     (out / "boundary.geojson").write_text(json.dumps(
@@ -190,7 +274,7 @@ def build(raw: Path, derived: Path, out: Path) -> dict:
         separators=(",", ":")))
     (out / "taxlots.geojson").write_text(json.dumps({"type": "FeatureCollection", "features": lean}, separators=(",", ":")))
     (out / "layers.json").write_text(json.dumps(layers, indent=2) + "\n")
-    LOG.info("site data written: %d taxlots, heat=%s", len(lean), "heat" in layers)
+    LOG.info("site data written: %d taxlots, heat=%s, green=%s", len(lean), "heat" in layers, "green" in layers)
     return layers
 
 
