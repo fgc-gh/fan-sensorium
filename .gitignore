@@ -1,0 +1,8 @@
+# Rebuilt by every run. data/derived/ and data/manifest.json ARE committed.
+data/raw/
+site/data/
+*.pmtiles
+*.aux.xml
+__pycache__/
+.pytest_cache/
+.venv/
