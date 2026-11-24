@@ -156,6 +156,11 @@ def build(raw: Path, derived: Path, out: Path) -> dict:
         means = zonal_means([f.get("geometry") for f in taxlots["features"]], grid, transform, crs)
         lot_heat = [None if m is None else m - median for m in means]
 
+        vals = np.array([d for d in lot_heat if d is not None])
+        if vals.size:
+            p5, p50, p95 = np.percentile(vals, [5, 50, 95])
+            LOG.info("lot heat vs FAN median: min %+.1f, p5 %+.1f, p50 %+.1f, p95 %+.1f, max %+.1f F",
+                     vals.min(), p5, p50, p95, vals.max())
         layers["heat"] = {
             "image": "data/heat.png",
             "corners": corners,

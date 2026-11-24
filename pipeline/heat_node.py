@@ -233,6 +233,18 @@ def composite(
             "fan_median_f": round(float(np.nanmedian(f[aoi])), 1),
         })
         LOG.info("%s: kept (FAN median %.1f F)", it["id"], used[-1]["fan_median_f"])
+    # WRS rows overlap: one pass over Eugene often arrives as two scenes (row
+    # 029 and row 030) with the same date. Count each pass once, keeping the
+    # copy that saw more of FAN, so no single day gets double weight.
+    best: dict[str, int] = {}
+    for i, u in enumerate(used):
+        day = u["datetime"][:10]
+        if day not in best or u["fan_clear"] > used[best[day]]["fan_clear"]:
+            best[day] = i
+    keep = sorted(best.values())
+    if len(keep) < len(used):
+        LOG.info("%d scenes are duplicate passes; %d distinct days kept", len(used) - len(keep), len(keep))
+    stack, used = [stack[i] for i in keep], [used[i] for i in keep]
     if not stack:
         return np.full(grid.shape, np.nan, dtype="float32"), used
     with warnings.catch_warnings():

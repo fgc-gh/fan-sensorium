@@ -68,6 +68,7 @@ def scenes(tmp_path):
       s0, s1, s2: truth + (-2, 0, +2) F        -> median == truth
       s3: truth + 30 F but half cloud          -> must be dropped (< 80% clear)
       s4: truth + 1 F with a cloud bit set in a corner outside FAN -> kept
+      s5: same date as s0 (overlapping row), +40 F, sees less -> dropped as duplicate
     """
     xs, ys = warp_xy("EPSG:4326", "EPSG:32610", [LON0 - .01, LON1 + .01], [LAT1 + .01, LAT0 - .01])
     x0, y1 = xs[0], ys[0]
@@ -83,7 +84,7 @@ def scenes(tmp_path):
 
     clear_qa = np.full((h, w), 1 << 6, dtype="uint16")  # bit 6 = clear
     items = []
-    specs = [(-2, None), (0, None), (2, None), (30, "half"), (1, "corner")]
+    specs = [(-2, None), (0, None), (2, None), (30, "half"), (1, "corner"), (40, "dupe")]
     for k, (off, cloud) in enumerate(specs):
         st = f_to_dn(truth + off)
         qa = clear_qa.copy()
@@ -91,10 +92,13 @@ def scenes(tmp_path):
             qa[:, : w // 2] = 1 << 3
         elif cloud == "corner":
             qa[:3, :3] = 1 << 3
+        elif cloud == "dupe":  # same pass as s0 (overlapping WRS row), sees less of FAN
+            qa[:, w // 2: w // 2 + 4] = 1 << 3  # a thin cloud strip across FAN
         sp, qp = tmp_path / f"s{k}_st.tif", tmp_path / f"s{k}_qa.tif"
         write(sp, st)
         write(qp, qa)
         items.append({"id": f"LC09_FAKE_{k}",
-                      "properties": {"datetime": f"2025-07-{10 + k:02d}T18:50:00Z", "platform": "landsat-9"},
+                      "properties": {"datetime": f"2025-07-{10 + (0 if cloud == 'dupe' else k):02d}T18:50:{k:02d}Z",
+                                     "platform": "landsat-9"},
                       "assets": {"lwir11": {"href": str(sp)}, "qa_pixel": {"href": str(qp)}}})
     return items

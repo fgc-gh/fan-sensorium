@@ -92,6 +92,7 @@ def test_heat_composite_masks_clouds_and_takes_median(tmp_path, raw_dir, scenes)
     meta = json.loads((out / "heat_scenes.json").read_text())
     kept = [s["id"] for s in meta["scenes"]]
     assert "LC09_FAKE_3" not in kept, "half-cloudy +30 F scene must be dropped"
+    assert "LC09_FAKE_5" not in kept and "LC09_FAKE_0" in kept, "duplicate pass must count once"
     assert len(kept) == 4
     # Truth runs 85..97 F across the grid; median of (-2, 0, +2, +1) offsets is +0.5.
     assert 88 < meta["fan_median_f"] < 95
