@@ -1,12 +1,12 @@
 {
   "boundary": {
     "area_km2": 3.623,
-    "sha256": "057c53d86c789c711d2971be2f2e4d837993751503cbfafce64f40d0bf251ab7"
+    "sha256": "dabfe4461c629df6cd47c7ff11d0f9a50abaf708d0223b50c124535fe49a231b"
   },
   "taxlots": {
     "count": 2917,
     "unique_ids": 2917,
-    "sha256": "1558268de39a9b6d573bf179071ceedf52bdcff775ff4eb764fc12540e0b3d67"
+    "sha256": "f2c0bb84cf9807bf967ed1c8e66830f64c08a539b42ef51e2f132e21ee762aaa"
   },
   "heat": {
     "summers": [
@@ -64,5 +64,5 @@
     "fan_green_share": 0.392,
     "sha256": "72812d0a3670a232a9a8b9456cd64a52b8af369ed6cddc95fe379fd2ea3ac1f4"
   },
-  "checked_utc": "2026-11-24T20:18Z"
+  "checked_utc": "2026-11-24T20:21Z"
 }
