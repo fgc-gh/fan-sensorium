@@ -1,0 +1,161 @@
+{
+  "summers": [
+    2024,
+    2025,
+    2026
+  ],
+  "season": "06-15 to 09-15",
+  "source": "Landsat 8/9 Collection 2 Level-2 ST_B10 via Microsoft Planetary Computer",
+  "statistic": "per-pixel median of clear scenes",
+  "overpass_local": "about 11:15 AM Pacific",
+  "fan_median_f": 101.47,
+  "scenes": [
+    {
+      "id": "LC08_L2SP_046030_20240701_02_T1",
+      "datetime": "2024-07-01T18:56:08.069164Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 108.6
+    },
+    {
+      "id": "LC09_L2SP_046029_20240709_02_T1",
+      "datetime": "2024-07-09T18:55:49.013440Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 120.2
+    },
+    {
+      "id": "LC08_L2SP_046029_20240717_02_T1",
+      "datetime": "2024-07-17T18:55:58.992057Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 105.9
+    },
+    {
+      "id": "LC09_L2SP_046029_20240725_02_T1",
+      "datetime": "2024-07-25T18:55:51.285956Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 99.9
+    },
+    {
+      "id": "LC09_L2SP_046029_20240810_02_T1",
+      "datetime": "2024-08-10T18:56:00.700717Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 103.5
+    },
+    {
+      "id": "LC08_L2SP_046029_20240903_02_T1",
+      "datetime": "2024-09-03T18:56:19.364426Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 96.5
+    },
+    {
+      "id": "LC09_L2SP_046030_20250626_02_T1",
+      "datetime": "2025-06-26T18:56:32.277692Z",
+      "platform": "landsat-9",
+      "fan_clear": 0.909,
+      "fan_median_f": 100.8
+    },
+    {
+      "id": "LC09_L2SP_046029_20250712_02_T1",
+      "datetime": "2025-07-12T18:56:11.745504Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 115.7
+    },
+    {
+      "id": "LC09_L2SP_046029_20250728_02_T1",
+      "datetime": "2025-07-28T18:56:19.603501Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 104.9
+    },
+    {
+      "id": "LC08_L2SP_046030_20250805_02_T1",
+      "datetime": "2025-08-05T18:56:48.774437Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 99.7
+    },
+    {
+      "id": "LC09_L2SP_046029_20250813_02_T1",
+      "datetime": "2025-08-13T18:56:30.765717Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 112.2
+    },
+    {
+      "id": "LC08_L2SP_046029_20250821_02_T1",
+      "datetime": "2025-08-21T18:56:30.224156Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 100.0
+    },
+    {
+      "id": "LC09_L2SP_046029_20250829_02_T1",
+      "datetime": "2025-08-29T18:56:33.850620Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 95.3
+    },
+    {
+      "id": "LC08_L2SP_046030_20260621_02_T1",
+      "datetime": "2026-06-21T18:56:07.033653Z",
+      "platform": "landsat-8",
+      "fan_clear": 0.987,
+      "fan_median_f": 101.0
+    },
+    {
+      "id": "LC08_L2SP_046029_20260707_02_T1",
+      "datetime": "2026-07-07T18:55:51.339170Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 98.9
+    },
+    {
+      "id": "LC09_L2SP_046029_20260715_02_T1",
+      "datetime": "2026-07-15T18:56:03.382566Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 103.8
+    },
+    {
+      "id": "LC09_L2SP_046029_20260731_02_T1",
+      "datetime": "2026-07-31T18:56:14.070950Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 105.0
+    },
+    {
+      "id": "LC08_L2SP_046029_20260808_02_T1",
+      "datetime": "2026-08-08T18:56:06.322328Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 108.8
+    },
+    {
+      "id": "LC09_L2SP_046029_20260816_02_T1",
+      "datetime": "2026-08-16T18:56:15.699255Z",
+      "platform": "landsat-9",
+      "fan_clear": 1.0,
+      "fan_median_f": 93.9
+    },
+    {
+      "id": "LC08_L2SP_046029_20260824_02_T1",
+      "datetime": "2026-08-24T18:56:14.019645Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 97.4
+    },
+    {
+      "id": "LC08_L2SP_046029_20260909_02_T1",
+      "datetime": "2026-09-09T18:56:16.414376Z",
+      "platform": "landsat-8",
+      "fan_clear": 1.0,
+      "fan_median_f": 90.3
+    }
+  ]
+}
